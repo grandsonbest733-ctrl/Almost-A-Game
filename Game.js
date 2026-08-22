@@ -1,18 +1,16 @@
 const loadScript = src => { let s = document.createElement('script'); s.src = src; document.head.appendChild(s); return s; };
-loadScript('https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js');
 let three = loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
 three.onload = initGame;
 
 function initGame() {
-    const socket = io();
-    const remotePlayers = {};
-    let isDead = false, currentStance = 'stand';
+    let isDead = false, currentStance = 'stand', playerHp = 100;
 
     const style = document.createElement('style');
     style.innerHTML = `
         body { background: #87ceeb; font-family: sans-serif; margin: 0; overflow: hidden; user-select: none; }
         .crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: #fff; border: 2px solid #000; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
         .ui-ammo { position: absolute; bottom: 110px; left: 30px; color: #fff; font-size: 18px; font-weight: bold; text-shadow: 2px 2px #000; }
+        .ui-player-hp { position: absolute; top: 20px; left: 20px; color: #ff3333; font-size: 20px; font-weight: bold; text-shadow: 2px 2px #000; }
         .ui-health { position: absolute; color: red; font-size: 14px; font-weight: bold; text-shadow: 1px 1px #000; transform: translate(-50%, -50%); pointer-events: none; }
         .weapon-menu-btn { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 6px; cursor: pointer; z-index: 10; }
         .weapon-bar { position: absolute; top: 55px; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 6px; z-index: 10; max-height: 70vh; overflow-y: auto; }
@@ -31,10 +29,9 @@ function initGame() {
     scene.background = new THREE.Color(0x87ceeb);
 
     const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
-    camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
-    let rY = Math.random() * Math.PI * 2, rX = 0;
+    camera.position.set(0, 2, 0);
+    let rY = 0, rX = 0;
     camera.rotation.order = 'YXZ';
-    camera.rotation.set(rX, rY, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(innerWidth, innerHeight);
@@ -49,7 +46,7 @@ function initGame() {
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    const buildingCoords = [[-30, -60], [40, -100]];
+    const buildingCoords = [[-30, -60], [40, -100], [-70, 50], [60, 80]];
     const tMat = new THREE.MeshStandardMaterial({ color: 0x2e4d1e }), trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
     for (let i = 0; i < 60; i++) {
         let x = (Math.random() - 0.5) * 400, z = (Math.random() - 0.5) * 400;
@@ -58,19 +55,19 @@ function initGame() {
         scene.add(t, l);
     }
 
-    const weapons = {
-        m1: { name: 'M1', fr: 400, max: 8, cur: 8, rt: 1500, dmg: 34, maxRange: 400, wood: 0x6e4726, metal: 0x222222 },
-        ak: { name: 'AK', fr: 150, max: 30, cur: 30, rt: 2000, dmg: 20, maxRange: 250, wood: 0x5c4033, metal: 0x333333 },
-        w1873: { name: 'Win 73', fr: 600, max: 12, cur: 12, rt: 2200, dmg: 55, maxRange: 400, wood: 0x7c5230, metal: 0x1c1c1c },
-        colt: { name: 'Colt', fr: 500, max: 6, cur: 6, rt: 1800, dmg: 45, maxRange: 20, wood: 0x8b5a2b, metal: 0x444444 },
-        mosin: { name: 'Mosin', fr: 900, max: 5, cur: 5, rt: 2500, dmg: 85, maxRange: 400, wood: 0x5a3d28, metal: 0x2a2a2a },
-        w1892: { name: 'Win 92', fr: 500, max: 12, cur: 12, rt: 2200, dmg: 50, maxRange: 400, wood: 0x754822, metal: 0x111111 },
-        w1897: { name: 'Win 97', fr: 700, max: 5, cur: 5, rt: 2500, dmg: 75, maxRange: 20, wood: 0x613f1d, metal: 0x383838 },
-        mauser: { name: 'Mauser', fr: 850, max: 5, cur: 5, rt: 2400, dmg: 80, maxRange: 400, wood: 0x50351d, metal: 0x1f1f1f },
-        lee: { name: 'Lee', fr: 350, max: 10, cur: 10, rt: 2000, dmg: 75, maxRange: 400, wood: 0x69482b, metal: 0x2d2d2d },
-        rem870: { name: 'Rem 870', fr: 650, max: 6, cur: 6, rt: 2200, dmg: 90, maxRange: 20, wood: 0x4a3219, metal: 0x404040 }
-    };
-    let curWeapon = weapons.m1;
+    const weaponsList = [
+        { name: 'M1', fr: 400, max: 8, cur: 8, rt: 1500, dmg: 34, maxRange: 400, wood: 0x6e4726, metal: 0x222222 },
+        { name: 'AK', fr: 150, max: 30, cur: 30, rt: 2000, dmg: 20, maxRange: 250, wood: 0x5c4033, metal: 0x333333 },
+        { name: 'Win 73', fr: 600, max: 12, cur: 12, rt: 2200, dmg: 55, maxRange: 400, wood: 0x7c5230, metal: 0x1c1c1c },
+        { name: 'Colt', fr: 500, max: 6, cur: 6, rt: 1800, dmg: 45, maxRange: 20, wood: 0x8b5a2b, metal: 0x444444 },
+        { name: 'Mosin', fr: 900, max: 5, cur: 5, rt: 2500, dmg: 85, maxRange: 400, wood: 0x5a3d28, metal: 0x2a2a2a },
+        { name: 'Win 92', fr: 500, max: 12, cur: 12, rt: 2200, dmg: 50, maxRange: 400, wood: 0x754822, metal: 0x111111 },
+        { name: 'Win 97', fr: 700, max: 5, cur: 5, rt: 2500, dmg: 75, maxRange: 20, wood: 0x613f1d, metal: 0x383838 },
+        { name: 'Mauser', fr: 850, max: 5, cur: 5, rt: 2400, dmg: 80, maxRange: 400, wood: 0x50351d, metal: 0x1f1f1f },
+        { name: 'Lee', fr: 350, max: 10, cur: 10, rt: 2000, dmg: 75, maxRange: 400, wood: 0x69482b, metal: 0x2d2d2d },
+        { name: 'Rem 870', fr: 650, max: 6, cur: 6, rt: 2200, dmg: 90, maxRange: 20, wood: 0x4a3219, metal: 0x404040 }
+    ];
+    let curWeapon = { ...weaponsList[0] };
 
     const wContainer = new THREE.Group();
     wContainer.position.set(0.3, -0.3, -0.6);
@@ -134,7 +131,7 @@ function initGame() {
 
     const mkDiv = (cls, txt = '') => { let d = document.createElement('div'); d.className = cls; d.innerText = txt; document.body.appendChild(d); return d; };
     mkDiv('crosshair');
-    const ammoUI = mkDiv('ui-ammo'), hpUI = mkDiv('ui-health');
+    const ammoUI = mkDiv('ui-ammo'), hpUI = mkDiv('ui-health'), playerHpUI = mkDiv('ui-player-hp', 'HP: 100');
     hpUI.style.display = 'none';
 
     const deathScreen = mkDiv('', 'YOU DIED');
@@ -145,10 +142,10 @@ function initGame() {
         isDead = true; deathScreen.style.display = 'flex';
         setTimeout(() => {
             isDead = false; deathScreen.style.display = 'none';
-            camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
-            rY = Math.random() * Math.PI * 2; rX = 0; camera.rotation.set(rX, rY, 0);
+            playerHp = 100; playerHpUI.innerText = 'HP: 100';
+            camera.position.set(0, 2, 0);
+            rY = 0; rX = 0; camera.rotation.set(rX, rY, 0);
             curWeapon.cur = curWeapon.max; updateUI();
-            socket.emit('playerRespawn', { x: camera.position.x, y: camera.position.y, z: camera.position.z });
         }, 5000);
     }
 
@@ -159,10 +156,10 @@ function initGame() {
     menuBtn.onclick = e => { e.stopPropagation(); wBar.classList.toggle('open'); };
     window.onclick = () => wBar.classList.remove('open');
 
-    Object.values(weapons).forEach(w => {
+    weaponsList.forEach(w => {
         let b = mkDiv('weapon-btn', w.name);
         b.onclick = e => {
-            e.stopPropagation(); curWeapon = w;
+            e.stopPropagation(); curWeapon = { ...w };
             stockMesh.material.color.setHex(w.wood); barrelMesh.material.color.setHex(w.metal);
             updateUI(); wBar.classList.remove('open');
         };
@@ -178,22 +175,28 @@ function initGame() {
         o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + t);
     }
 
-    function addRemotePlayer(p) {
+    // Spawn 10 AI Bots, each with a unique weapon from the roster
+    const bots = [];
+    for (let i = 0; i < 10; i++) {
         let g = new THREE.Group();
         let torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.4), new THREE.MeshStandardMaterial({ color: 0xcc3333 })); torso.position.set(0, 1, 0);
         let head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0xffdbac })); head.position.set(0, 1.7, 0);
-        g.add(torso, head); g.position.set(p.x, p.y, p.z);
-        g.userData = { id: p.id, hp: p.hp || 100, showHpUntil: 0 };
-        scene.add(g); remotePlayers[p.id] = g;
-    }
+        g.add(torso, head);
+       
+        let bx = (Math.random() - 0.5) * 300, bz = (Math.random() - 0.5) * 300;
+        g.position.set(bx, 0, bz);
+        scene.add(g);
 
-    socket.on('currentPlayers', ps => Object.keys(ps).forEach(id => id !== socket.id && addRemotePlayer(ps[id])));
-    socket.on('newPlayer', p => addRemotePlayer(p));
-    socket.on('playerMoved', p => { if (remotePlayers[p.id]) { remotePlayers[p.id].position.set(p.x, p.y, p.z); remotePlayers[p.id].rotation.y = p.ry; } });
-    socket.on('playerDamaged', ({ id, hp }) => { if (remotePlayers[id]) { remotePlayers[id].userData.hp = hp; remotePlayers[id].userData.showHpUntil = performance.now() + 3000; } });
-    socket.on('playerKilled', id => { if (remotePlayers[id]) { scene.remove(remotePlayers[id]); delete remotePlayers[id]; } });
-    socket.on('disconnectPlayer', id => { if (remotePlayers[id]) { scene.remove(remotePlayers[id]); delete remotePlayers[id]; } });
-    socket.on('die', () => triggerDeath());
+        bots.push({
+            mesh: g,
+            hp: 100,
+            maxHp: 100,
+            weapon: { ...weaponsList[i] },
+            lastShot: 0,
+            isReloading: false,
+            targetPos: new THREE.Vector3((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300)
+        });
+    }
 
     const raycaster = new THREE.Raycaster();
     function shoot() {
@@ -203,14 +206,20 @@ function initGame() {
             curWeapon.last = now; curWeapon.cur--; updateUI();
             sound(200, 0.1); flash.visible = true;
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            let hits = raycaster.intersectObjects(Object.values(remotePlayers), true);
+            let hits = raycaster.intersectObjects(bots.map(b => b.mesh), true);
             if (hits.length > 0) {
                 let distance = camera.position.distanceTo(hits[0].point);
                 if (distance <= curWeapon.maxRange) {
                     let finalDamage = Math.max(1, Math.round(curWeapon.dmg * (1 - (distance / curWeapon.maxRange))));
-                    let root = hits[0].object;
-                    while (root.parent && !root.userData?.id) root = root.parent;
-                    if (root.userData?.id) socket.emit('shootPlayer', { targetId: root.userData.id, damage: finalDamage });
+                    let hitBot = bots.find(b => b.mesh === hits[0].object.parent || b.mesh === hits[0].object);
+                    if (hitBot) {
+                        hitBot.hp -= finalDamage;
+                        hitBot.showHpUntil = performance.now() + 3000;
+                        if (hitBot.hp <= 0) {
+                            scene.remove(hitBot.mesh);
+                            bots.splice(bots.indexOf(hitBot), 1);
+                        }
+                    }
                 }
             }
         }
@@ -260,7 +269,7 @@ function initGame() {
     };
     window.ontouchstart = e => { if (!isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };
 
-    let lastSend = 0, hpVec = new THREE.Vector3();
+    let hpVec = new THREE.Vector3();
 
     function animate() {
         requestAnimationFrame(animate);
@@ -287,20 +296,49 @@ function initGame() {
             verticalVelocity -= 0.01;
         }
 
+        // Update Bot AI
         let now = performance.now();
-        if (now - lastSend > 50) {
-            socket.emit('playerMovement', { x: camera.position.x, y: camera.position.y, z: camera.position.z, rx: camera.rotation.x, ry: camera.rotation.y, stance: currentStance });
-            lastSend = now;
-        }
+        bots.forEach(bot => {
+            let distToPlayer = bot.mesh.position.distanceTo(camera.position);
 
-        let baseOffset = currentStance === 'prone' ? 0.6 : (currentStance === 'crouch' ? 1.2 : 2.0);
-        let targetCamY = baseOffset;
+            if (distToPlayer < 100) {
+                // Chase player
+                bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
+                let dir = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
+                bot.mesh.position.addScaledVector(dir, 0.05);
+
+                // Shoot player if in range
+                if (distToPlayer <= bot.weapon.maxRange && now - bot.lastShot >= bot.weapon.fr && !bot.isReloading) {
+                    if (bot.weapon.cur > 0) {
+                        bot.weapon.cur--;
+                        bot.lastShot = now;
+                        let damage = Math.max(1, Math.round(bot.weapon.dmg * (1 - (distToPlayer / bot.weapon.maxRange))));
+                        playerHp -= damage;
+                        playerHpUI.innerText = `HP: ${Math.max(0, playerHp)}`;
+                        if (playerHp <= 0) triggerDeath();
+                    } else if (!bot.isReloading) {
+                        bot.isReloading = true;
+                        setTimeout(() => { bot.weapon.cur = bot.weapon.max; bot.isReloading = false; }, bot.weapon.rt);
+                    }
+                }
+            } else {
+                // Patrol / Wander
+                if (bot.mesh.position.distanceTo(bot.targetPos) < 5) {
+                    bot.targetPos.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
+                }
+                bot.mesh.lookAt(bot.targetPos);
+                let dir = new THREE.Vector3().subVectors(bot.targetPos, bot.mesh.position).normalize();
+                bot.mesh.position.addScaledVector(dir, 0.03);
+            }
+        });
+
+        let targetCamY = currentStance === 'prone' ? 0.6 : (currentStance === 'crouch' ? 1.2 : 2.0);
 
         for (let floorObj of floorFloors) {
             let b = new THREE.Box3().setFromObject(floorObj);
             if (camera.position.x >= b.min.x - 0.2 && camera.position.x <= b.max.x + 0.2 &&
                 camera.position.z >= b.min.z - 0.2 && camera.position.z <= b.max.z + 0.2) {
-                let surfaceTop = b.max.y + baseOffset;
+                let surfaceTop = b.max.y + targetCamY;
                 if (camera.position.y >= b.max.y - 0.4 && camera.position.y < surfaceTop + 1.2) {
                     if (surfaceTop > targetCamY) targetCamY = surfaceTop;
                 }
@@ -315,13 +353,13 @@ function initGame() {
             verticalVelocity = 0;
         }
 
-        let activeTarget = Object.values(remotePlayers).find(p => performance.now() < p.userData.showHpUntil);
+        let activeTarget = bots.find(b => b.showHpUntil && performance.now() < b.showHpUntil);
         if (activeTarget) {
             hpUI.style.display = 'block';
-            hpVec.set(activeTarget.position.x, activeTarget.position.y + 2.3, activeTarget.position.z).project(camera);
+            hpVec.set(activeTarget.mesh.position.x, activeTarget.mesh.position.y + 2.3, activeTarget.mesh.position.z).project(camera);
             hpUI.style.left = `${(hpVec.x * .5 + .5) * innerWidth}px`;
             hpUI.style.top = `${(hpVec.y * -.5 + .5) * innerHeight}px`;
-            hpUI.innerText = `HP: ${activeTarget.userData.hp}`;
+            hpUI.innerText = `BOT HP: ${activeTarget.hp}`;
         } else {
             hpUI.style.display = 'none';
         }
@@ -329,4 +367,4 @@ function initGame() {
         renderer.render(scene, camera);
     }
     animate();
-}
+        }
