@@ -3,7 +3,7 @@ let three = loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/thr
 three.onload = initGame;
 
 function initGame() {
-    let isDead = false, currentStance = 'stand', playerHp = 100;
+    let isDead = false, currentStance = 'stand', playerHp = 100, isInvincible = false, isZoomed = false;
 
     const style = document.createElement('style');
     style.innerHTML = `
@@ -18,6 +18,7 @@ function initGame() {
         .weapon-btn { padding: 6px 12px; background: rgba(50,50,50,0.9); color: #fff; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; text-align: center; width: 90px; }
         #reloadBtn { position: absolute; bottom: 95px; left: 30px; padding: 10px 20px; background: rgba(0,0,255,0.7); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
         #shootBtn { position: absolute; bottom: 30px; left: 30px; padding: 20px 30px; background: rgba(255,0,0,0.8); color: #fff; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer; }
+        #zoomBtn { position: absolute; bottom: 160px; left: 30px; padding: 10px 20px; background: rgba(100,100,100,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
         #jumpBtn { position: absolute; bottom: 95px; right: 130px; padding: 15px; background: rgba(0,180,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
         #crouchBtn { position: absolute; bottom: 95px; right: 220px; padding: 15px; background: rgba(180,100,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
         #proneBtn { position: absolute; bottom: 30px; right: 130px; padding: 20px 15px; background: rgba(100,50,150,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 10px; cursor: pointer; }
@@ -29,7 +30,6 @@ function initGame() {
     scene.background = new THREE.Color(0x87ceeb);
 
     const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
-    // Safe open field spawn away from structures
     camera.position.set(120, 2, 120);
     let rY = 0, rX = 0;
     camera.rotation.order = 'YXZ';
@@ -139,15 +139,23 @@ function initGame() {
     deathScreen.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(150,0,0,0.8);color:white;display:none;flex-direction:column;justify-content:center;align-items:center;font-size:32px;font-weight:bold;z-index:9999;';
 
     function triggerDeath() {
-        if (isDead) return;
+        if (isDead || isInvincible) return;
         isDead = true; deathScreen.style.display = 'flex';
         setTimeout(() => {
             isDead = false; deathScreen.style.display = 'none';
             playerHp = 100; playerHpUI.innerText = 'HP: 100';
-            // Randomize respawn location safely across the map
             camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
             rY = 0; rX = 0; camera.rotation.set(rX, rY, 0);
             curWeapon.cur = curWeapon.max; updateUI();
+
+            isInvincible = true;
+            playerHpUI.style.color = '#33ccff';
+            playerHpUI.innerText = 'HP: 100 (INVINCIBLE)';
+            setTimeout(() => {
+                isInvincible = false;
+                playerHpUI.style.color = '#ff3333';
+                playerHpUI.innerText = `HP: ${playerHp}`;
+            }, 5000);
         }, 3000);
     }
 
@@ -235,6 +243,15 @@ function initGame() {
     mkBtn('shootBtn', 'SHOOT', v => shooting = v);
     mkBtn('moveBtn', 'MOVE', v => moving = v);
 
+    let zoomBtn = mkDiv('', 'ZOOM'); zoomBtn.id = 'zoomBtn';
+    zoomBtn.ontouchstart = zoomBtn.onmousedown = e => {
+        e.preventDefault();
+        isZoomed = !isZoomed;
+        camera.fov = isZoomed ? 35 : 75;
+        camera.updateProjectionMatrix();
+        zoomBtn.style.background = isZoomed ? 'rgba(0,150,255,0.8)' : 'rgba(100,100,100,0.8)';
+    };
+
     let jumpBtn = mkDiv('', 'JUMP'); jumpBtn.id = 'jumpBtn';
     jumpBtn.ontouchstart = jumpBtn.onmousedown = e => {
         e.preventDefault();
@@ -268,9 +285,7 @@ function initGame() {
         rX = Math.max(-1.5, Math.min(1.5, rX - (t.clientY - tY) * 0.005)); camera.rotation.x = rX;
         tX = t.clientX; tY = t.clientY;
     };
-    window.ontouchstart = e => { if (!isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };
-
-    let hpVec = new THREE.Vector3();
+    window.ontouchstart = e => { if (!isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };    let hpVec = new THREE.Vector3();
 
     function animate() {
         requestAnimationFrame(animate);
@@ -310,10 +325,12 @@ function initGame() {
                     if (bot.weapon.cur > 0) {
                         bot.weapon.cur--;
                         bot.lastShot = now;
-                        let damage = Math.max(1, Math.round(bot.weapon.dmg * (1 - (distToPlayer / bot.weapon.maxRange))));
-                        playerHp -= damage;
-                        playerHpUI.innerText = `HP: ${Math.max(0, playerHp)}`;
-                        if (playerHp <= 0) triggerDeath();
+                        if (!isInvincible) {
+                            let damage = Math.max(1, Math.round(bot.weapon.dmg * (1 - (distToPlayer / bot.weapon.maxRange))));
+                            playerHp -= damage;
+                            playerHpUI.innerText = `HP: ${Math.max(0, playerHp)}`;
+                            if (playerHp <= 0) triggerDeath();
+                        }
                     } else if (!bot.isReloading) {
                         bot.isReloading = true;
                         setTimeout(() => { bot.weapon.cur = bot.weapon.max; bot.isReloading = false; }, bot.weapon.rt);
@@ -364,4 +381,4 @@ function initGame() {
         renderer.render(scene, camera);
     }
     animate();
-        }
+}
