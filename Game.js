@@ -3,14 +3,14 @@ let three = loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/thr
 three.onload = initGame;
 
 function initGame() {
-    let isDead = false, currentStance = 'stand', playerHp = 100, isInvincible = false, isZoomed = false;
+    let isDead = false, currentStance = 'stand', playerHp = 500, maxPlayerHp = 500, isInvincible = false, isZoomed = false;
 
     const style = document.createElement('style');
     style.innerHTML = `
         body { background: #87ceeb; font-family: sans-serif; margin: 0; overflow: hidden; user-select: none; }
         .crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: #fff; border: 2px solid #000; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
         .ui-ammo { position: absolute; bottom: 110px; left: 30px; color: #fff; font-size: 18px; font-weight: bold; text-shadow: 2px 2px #000; }
-        .ui-player-hp { position: absolute; top: 20px; left: 20px; color: #ff3333; font-size: 20px; font-weight: bold; text-shadow: 2px 2px #000; }
+        .ui-player-hp { position: absolute; top: 20px; left: 20px; color: #33ccff; font-size: 20px; font-weight: bold; text-shadow: 2px 2px #000; }
         .ui-health { position: absolute; color: red; font-size: 14px; font-weight: bold; text-shadow: 1px 1px #000; transform: translate(-50%, -50%); pointer-events: none; }
         .weapon-menu-btn { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 6px; cursor: pointer; z-index: 10; }
         .weapon-bar { position: absolute; top: 55px; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 6px; z-index: 10; max-height: 70vh; overflow-y: auto; }
@@ -132,7 +132,7 @@ function initGame() {
 
     const mkDiv = (cls, txt = '') => { let d = document.createElement('div'); d.className = cls; d.innerText = txt; document.body.appendChild(d); return d; };
     mkDiv('crosshair');
-    const ammoUI = mkDiv('ui-ammo'), hpUI = mkDiv('ui-health'), playerHpUI = mkDiv('ui-player-hp', 'HP: 100');
+    const ammoUI = mkDiv('ui-ammo'), hpUI = mkDiv('ui-health'), playerHpUI = mkDiv('ui-player-hp', 'HP: 500');
     hpUI.style.display = 'none';
 
     const deathScreen = mkDiv('', 'YOU DIED');
@@ -143,14 +143,14 @@ function initGame() {
         isDead = true; deathScreen.style.display = 'flex';
         setTimeout(() => {
             isDead = false; deathScreen.style.display = 'none';
-            playerHp = 100; playerHpUI.innerText = 'HP: 100';
+            playerHp = maxPlayerHp; playerHpUI.innerText = `HP: ${playerHp}`;
             camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
             rY = 0; rX = 0; camera.rotation.set(rX, rY, 0);
             curWeapon.cur = curWeapon.max; updateUI();
 
             isInvincible = true;
             playerHpUI.style.color = '#33ccff';
-            playerHpUI.innerText = 'HP: 100 (INVINCIBLE)';
+            playerHpUI.innerText = `HP: ${playerHp} (INVINCIBLE)`;
             setTimeout(() => {
                 isInvincible = false;
                 playerHpUI.style.color = '#ff3333';
@@ -183,29 +183,25 @@ function initGame() {
         o.frequency.setValueAtTime(f, ac.currentTime);
         g.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + t);
         o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + t);
-    }
+    }    let randomWeaponTemplate = weaponsList[Math.floor(Math.random() * weaponsList.length)];
+    let botGroup = new THREE.Group();
+    let torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.4), new THREE.MeshStandardMaterial({ color: 0xcc3333 })); torso.position.set(0, 1, 0);
+    let head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0xffdbac })); head.position.set(0, 1.7, 0);
+    botGroup.add(torso, head);
+   
+    botGroup.position.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
+    scene.add(botGroup);
 
-    const bots = [];
-    for (let i = 0; i < 10; i++) {
-        let g = new THREE.Group();
-        let torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.4), new THREE.MeshStandardMaterial({ color: 0xcc3333 })); torso.position.set(0, 1, 0);
-        let head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0xffdbac })); head.position.set(0, 1.7, 0);
-        g.add(torso, head);
-       
-        let bx = (Math.random() - 0.5) * 300, bz = (Math.random() - 0.5) * 300;
-        g.position.set(bx, 0, bz);
-        scene.add(g);
-
-        bots.push({
-            mesh: g,
-            hp: 100,
-            maxHp: 100,
-            weapon: { ...weaponsList[i] },
-            lastShot: 0,
-            isReloading: false,
-            targetPos: new THREE.Vector3((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300)
-        });
-    }
+    const bot = {
+        mesh: botGroup,
+        hp: 100,
+        maxHp: 100,
+        weapon: { ...randomWeaponTemplate },
+        lastShot: 0,
+        isReloading: false,
+        targetPos: new THREE.Vector3((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300),
+        showHpUntil: 0
+    };
 
     const raycaster = new THREE.Raycaster();
     function shoot() {
@@ -215,19 +211,16 @@ function initGame() {
             curWeapon.last = now; curWeapon.cur--; updateUI();
             sound(200, 0.1); flash.visible = true;
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            let hits = raycaster.intersectObjects(bots.map(b => b.mesh), true);
+            let hits = raycaster.intersectObjects([bot.mesh], true);
             if (hits.length > 0) {
                 let distance = camera.position.distanceTo(hits[0].point);
                 if (distance <= curWeapon.maxRange) {
                     let finalDamage = Math.max(1, Math.round(curWeapon.dmg * (1 - (distance / curWeapon.maxRange))));
-                    let hitBot = bots.find(b => b.mesh === hits[0].object.parent || b.mesh === hits[0].object);
-                    if (hitBot) {
-                        hitBot.hp -= finalDamage;
-                        hitBot.showHpUntil = performance.now() + 3000;
-                        if (hitBot.hp <= 0) {
-                            scene.remove(hitBot.mesh);
-                            bots.splice(bots.indexOf(hitBot), 1);
-                        }
+                    bot.hp -= finalDamage;
+                    bot.showHpUntil = performance.now() + 3000;
+                    if (bot.hp <= 0) {
+                        scene.remove(bot.mesh);
+                        bot.hp = 0;
                     }
                 }
             }
@@ -285,7 +278,9 @@ function initGame() {
         rX = Math.max(-1.5, Math.min(1.5, rX - (t.clientY - tY) * 0.005)); camera.rotation.x = rX;
         tX = t.clientX; tY = t.clientY;
     };
-    window.ontouchstart = e => { if (!isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };    let hpVec = new THREE.Vector3();
+    window.ontouchstart = e => { if (!isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };
+
+    let hpVec = new THREE.Vector3();
 
     function animate() {
         requestAnimationFrame(animate);
@@ -313,7 +308,7 @@ function initGame() {
         }
 
         let now = performance.now();
-        bots.forEach(bot => {
+        if (bot.hp > 0) {
             let distToPlayer = bot.mesh.position.distanceTo(camera.position);
 
             if (distToPlayer < 120) {
@@ -344,7 +339,7 @@ function initGame() {
                 let dir = new THREE.Vector3().subVectors(bot.targetPos, bot.mesh.position).normalize();
                 bot.mesh.position.addScaledVector(dir, 0.02);
             }
-        });
+        }
 
         let targetCamY = currentStance === 'prone' ? 0.6 : (currentStance === 'crouch' ? 1.2 : 2.0);
 
@@ -367,13 +362,12 @@ function initGame() {
             verticalVelocity = 0;
         }
 
-        let activeTarget = bots.find(b => b.showHpUntil && performance.now() < b.showHpUntil);
-        if (activeTarget) {
+        if (bot.hp > 0 && bot.showHpUntil && performance.now() < bot.showHpUntil) {
             hpUI.style.display = 'block';
-            hpVec.set(activeTarget.mesh.position.x, activeTarget.mesh.position.y + 2.3, activeTarget.mesh.position.z).project(camera);
+            hpVec.set(bot.mesh.position.x, bot.mesh.position.y + 2.3, bot.mesh.position.z).project(camera);
             hpUI.style.left = `${(hpVec.x * .5 + .5) * innerWidth}px`;
             hpUI.style.top = `${(hpVec.y * -.5 + .5) * innerHeight}px`;
-            hpUI.innerText = `BOT HP: ${activeTarget.hp}`;
+            hpUI.innerText = `BOT HP: ${bot.hp}`;
         } else {
             hpUI.style.display = 'none';
         }
@@ -381,4 +375,4 @@ function initGame() {
         renderer.render(scene, camera);
     }
     animate();
-}
+        }
