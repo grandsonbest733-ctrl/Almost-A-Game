@@ -29,7 +29,8 @@ function initGame() {
     scene.background = new THREE.Color(0x87ceeb);
 
     const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
-    camera.position.set(0, 2, 0);
+    // Safe open field spawn away from structures
+    camera.position.set(120, 2, 120);
     let rY = 0, rX = 0;
     camera.rotation.order = 'YXZ';
 
@@ -143,10 +144,11 @@ function initGame() {
         setTimeout(() => {
             isDead = false; deathScreen.style.display = 'none';
             playerHp = 100; playerHpUI.innerText = 'HP: 100';
-            camera.position.set(0, 2, 0);
+            // Randomize respawn location safely across the map
+            camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
             rY = 0; rX = 0; camera.rotation.set(rX, rY, 0);
             curWeapon.cur = curWeapon.max; updateUI();
-        }, 5000);
+        }, 3000);
     }
 
     function updateUI() { ammoUI.innerText = curWeapon.isReloading ? 'RELOADING...' : `AMMO: ${curWeapon.cur} / ${curWeapon.max}`; }
@@ -175,7 +177,6 @@ function initGame() {
         o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + t);
     }
 
-    // Spawn 10 AI Bots, each with a unique weapon from the roster
     const bots = [];
     for (let i = 0; i < 10; i++) {
         let g = new THREE.Group();
@@ -296,18 +297,15 @@ function initGame() {
             verticalVelocity -= 0.01;
         }
 
-        // Update Bot AI
         let now = performance.now();
         bots.forEach(bot => {
             let distToPlayer = bot.mesh.position.distanceTo(camera.position);
 
-            if (distToPlayer < 100) {
-                // Chase player
+            if (distToPlayer < 120) {
                 bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
                 let dir = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
-                bot.mesh.position.addScaledVector(dir, 0.05);
+                bot.mesh.position.addScaledVector(dir, 0.04);
 
-                // Shoot player if in range
                 if (distToPlayer <= bot.weapon.maxRange && now - bot.lastShot >= bot.weapon.fr && !bot.isReloading) {
                     if (bot.weapon.cur > 0) {
                         bot.weapon.cur--;
@@ -322,13 +320,12 @@ function initGame() {
                     }
                 }
             } else {
-                // Patrol / Wander
                 if (bot.mesh.position.distanceTo(bot.targetPos) < 5) {
                     bot.targetPos.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
                 }
                 bot.mesh.lookAt(bot.targetPos);
                 let dir = new THREE.Vector3().subVectors(bot.targetPos, bot.mesh.position).normalize();
-                bot.mesh.position.addScaledVector(dir, 0.03);
+                bot.mesh.position.addScaledVector(dir, 0.02);
             }
         });
 
