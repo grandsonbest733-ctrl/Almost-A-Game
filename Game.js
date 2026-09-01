@@ -26,7 +26,7 @@ function initGame() {
         #zoomBtn { position: absolute; bottom: 160px; left: 30px; padding: 10px 20px; background: rgba(100,100,100,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; display: none; }
         #jumpBtn { position: absolute; bottom: 95px; right: 130px; padding: 15px; background: rgba(0,180,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; display: none; }
         #crouchBtn { position: absolute; bottom: 95px; right: 220px; padding: 15px; background: rgba(180,100,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; display: none; }
-        #proneBtn { position: absolute; bottom: 30px; right: 130px; padding: 20px 15px; background: rgba(100,50,150,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; display: none; }
+        #proneBtn { position: absolute; bottom: 30px; right: 130px; padding: 20px 15px; background: rgba(100,50,150,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 10px; cursor: pointer; display: none; }
         #moveBtn { position: absolute; bottom: 30px; right: 30px; padding: 20px 25px; background: rgba(255,255,255,0.8); color: #000; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer; display: none; }
         .home-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(20, 30, 40, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; color: white; }
         .home-title { font-size: 48px; font-weight: bold; margin-bottom: 30px; text-shadow: 3px 3px #000; }
@@ -270,6 +270,32 @@ function initGame() {
         }, 3000);
     }
 
+    function triggerDeath() {
+        isDead = true;
+        let respawnCountdown = 5;
+        botStatusUI.style.display = 'block';
+        botStatusUI.innerText = `YOU DIED - RESPAWNS IN ${respawnCountdown}s`;
+
+        let respawnInterval = setInterval(() => {
+            if (!gameStarted) {
+                clearInterval(respawnInterval);
+                return;
+            }
+            respawnCountdown--;
+            if (respawnCountdown > 0) {
+                botStatusUI.innerText = `YOU DIED - RESPAWNS IN ${respawnCountdown}s`;
+            } else {
+                clearInterval(respawnInterval);
+                botStatusUI.style.display = 'none';
+                playerHp = maxPlayerHp;
+                playerHpUI.innerText = `HP: ${playerHp}`;
+                camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
+                rY = 0; rX = 0; camera.rotation.set(rX, rY, 0);
+                isDead = false;
+            }
+        }, 1000);
+    }
+
     function updateUI() { ammoUI.innerText = curWeapon.isReloading ? 'RELOADING...' : `AMMO: ${curWeapon.cur} / ${curWeapon.max}`; }
     updateUI();
 
@@ -444,12 +470,12 @@ function initGame() {
         return b;
     };
     const shootBtnUI = mkBtn('shootBtn', 'SHOOT', v => shooting = v);
-    const moveBtnUI = mkBtn('moveBtn', 'MOVE', v => moving = v);
+    const moveBtnUI = mkBtn('MOVE', 'MOVE', v => moving = v);
 
     let zoomBtnUI = mkDiv('', 'ZOOM'); zoomBtnUI.id = 'zoomBtn';
     zoomBtnUI.ontouchstart = zoomBtnUI.onmousedown = e => {
         e.preventDefault();
-        if (!gameStarted) return;
+        if (!gameStarted || isDead) return;
         isZoomed = !isZoomed;
         camera.fov = isZoomed ? 35 : 75;
         camera.updateProjectionMatrix();
@@ -551,7 +577,7 @@ function initGame() {
                             let damage = Math.max(1, Math.round((bot.weapon.dmg * 0.4) * (1 - (distToPlayer / bot.weapon.maxRange))));
                             playerHp -= damage;
                             playerHpUI.innerText = `HP: ${Math.max(0, playerHp)}`;
-                            if (playerHp <= 0) {
+                            if (playerHp <= 0 && !isDead) {
                                 redScore++;
                                 updateScoreboard();
                                 if (redScore >= 10) {
@@ -610,4 +636,4 @@ function initGame() {
         renderer.render(scene, camera);
     }
     animate();
-                        }
+        }
