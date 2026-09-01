@@ -470,7 +470,7 @@ function initGame() {
         return b;
     };
     const shootBtnUI = mkBtn('shootBtn', 'SHOOT', v => shooting = v);
-    const moveBtnUI = mkBtn('MOVE', 'MOVE', v => moving = v);
+    const moveBtnUI = mkBtn('moveBtn', 'MOVE', v => moving = v);
 
     let zoomBtnUI = mkDiv('', 'ZOOM'); zoomBtnUI.id = 'zoomBtn';
     zoomBtnUI.ontouchstart = zoomBtnUI.onmousedown = e => {
@@ -516,7 +516,6 @@ function initGame() {
         tX = t.clientX; tY = t.clientY;
     };
     window.ontouchstart = e => { if (gameStarted && !isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };
-
     let hpVec = new THREE.Vector3();
 
     function animate() {
@@ -573,7 +572,7 @@ function initGame() {
                     if (bot.weapon.cur > 0) {
                         bot.weapon.cur--;
                         bot.lastShot = now;
-                        if (!isInvincible) {
+                        if (!isInvincible && !isDead) {
                             let damage = Math.max(1, Math.round((bot.weapon.dmg * 0.4) * (1 - (distToPlayer / bot.weapon.maxRange))));
                             playerHp -= damage;
                             playerHpUI.innerText = `HP: ${Math.max(0, playerHp)}`;
@@ -636,4 +635,4 @@ function initGame() {
         renderer.render(scene, camera);
     }
     animate();
-        }
+                    }
