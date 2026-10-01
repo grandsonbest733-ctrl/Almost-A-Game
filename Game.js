@@ -5,7 +5,7 @@ three.onload = initGame;
 function initGame() {
     let isDead = false, currentStance = 'stand', playerHp = 500, maxPlayerHp = 500, isInvincible = false, isZoomed = false;
     let blueScore = 0, redScore = 0, gameStarted = false, startCountdownTimer = null;
-    let activePumpkinItem = null, gatlingGunPlaced = false, gatlingMesh = null, gatlingBullets = 0;
+    let activePumpkinItem = null, activePumpkinWeaponName = null, gatlingGunPlaced = false, gatlingMesh = null, gatlingBullets = 0;
     let isHoldingGatling = false, gatlingPickupDistance = 5;
     let selectedOpponentSkin = 'Kingsguard';
 
@@ -94,9 +94,14 @@ function initGame() {
     let curWeapon = { ...weaponsList[0] };
 
     const pumpkins = [];
+    const droppedItems = [];
+
     function spawnPumpkins() {
         pumpkins.forEach(p => scene.remove(p.mesh));
         pumpkins.length = 0;
+        droppedItems.forEach(d => scene.remove(d.mesh));
+        droppedItems.length = 0;
+
         const types = [
             { color: 0xff8c00, item: 'Gatling Gun', name: 'Gatling Gun' },
             { color: 0xff1493, item: 'Bazooka', name: 'Bazooka' },
@@ -278,6 +283,7 @@ function initGame() {
         updateUI();
 
         activePumpkinItem = null;
+        activePumpkinWeaponName = null;
         gatlingGunPlaced = false;
         isHoldingGatling = false;
         if (gatlingMesh) { scene.remove(gatlingMesh); gatlingMesh = null; }
@@ -351,6 +357,7 @@ function initGame() {
     function triggerDeath() {
         isDead = true;
         activePumpkinItem = null;
+        activePumpkinWeaponName = null;
         pumpkinPickupUI.style.display = 'none';
         gatlingWheelUI.style.display = 'none';
         let respawnCountdown = 5;
@@ -514,22 +521,48 @@ function initGame() {
         return hits.length === 0;
     }
 
+    function spawnDroppedItem(pos, itemType, itemName) {
+        let itemMesh = new THREE.Group();
+        let body;
+        if (itemType === 'Gatling Gun') {
+            body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+        } else if (itemType === 'Bazooka') {
+            body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.5), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            body.rotation.x = Math.PI / 2;
+        } else {
+            body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x8b0000 }));
+            body.rotation.x = Math.PI / 2;
+        }
+        itemMesh.add(body);
+        itemMesh.position.copy(pos);
+        itemMesh.position.y = 0.5;
+        scene.add(itemMesh);
+        droppedItems.push({ mesh: itemMesh, item: itemType, name: itemName });
+    }
+
     function triggerPumpkinExplosion(p) {
         if (!p.active) return;
         p.active = false;
         playSound('explosion');
 
+        let dropPos = p.mesh.position.clone();
+        let itemType = p.item;
+        let itemName = p.name;
+        scene.remove(p.mesh);
+
+        spawnDroppedItem(dropPos, itemType, itemName);
+
         let expGeo = new THREE.RingGeometry(0.1, 30, 32);
         let expMat = new THREE.MeshBasicMaterial({ color: 0xff4500, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
         let expRing = new THREE.Mesh(expGeo, expMat);
         expRing.rotation.x = -Math.PI / 2;
-        expRing.position.copy(p.mesh.position);
+        expRing.position.copy(dropPos);
         expRing.position.y = 0.1;
         scene.add(expRing);
         p.explosionMesh = expRing;
         p.explosionTimer = performance.now() + 3000;
 
-        let pDist = camera.position.distanceTo(p.mesh.position);
+        let pDist = camera.position.distanceTo(dropPos);
         if (pDist <= 30 && !isInvincible && !isDead) {
             playerHp = 0;
             playerHpUI.innerText = `HP: 0`;
@@ -543,7 +576,7 @@ function initGame() {
         }
 
         if (bot && bot.hp > 0 && !bot.isRespawning) {
-            let bDist = bot.mesh.position.distanceTo(p.mesh.position);
+            let bDist = bot.mesh.position.distanceTo(dropPos);
             if (bDist <= 30) {
                 bot.hp = 0;
                 bot.isRespawning = true;
@@ -570,8 +603,6 @@ function initGame() {
                 }
             }
         }
-
-        scene.remove(p.mesh);
     }
 
     function shoot() {
@@ -614,6 +645,7 @@ function initGame() {
                     }
                 }, 1000);
                 activePumpkinItem = null;
+                activePumpkinWeaponName = null;
                 weaponsList = JSON.parse(JSON.stringify(defaultWeaponsList));
                 rebuildWeaponBar();
                 curWeapon = { ...weaponsList[0] };
@@ -642,6 +674,7 @@ function initGame() {
                     }
                 }, 1000);
                 activePumpkinItem = null;
+                activePumpkinWeaponName = null;
                 weaponsList = JSON.parse(JSON.stringify(defaultWeaponsList));
                 rebuildWeaponBar();
                 curWeapon = { ...weaponsList[0] };
@@ -799,7 +832,16 @@ function initGame() {
             curWeapon = { ...specialWeapon };
             rebuildWeaponBar();
             updateUI();
+
+            let targetItem = droppedItems.find(d => d.name === activePumpkinWeaponName);
+            if (targetItem) {
+                scene.remove(targetItem.mesh);
+                let idx = droppedItems.indexOf(targetItem);
+                if (idx > -1) droppedItems.splice(idx, 1);
+            }
+
             activePumpkinItem = null;
+            activePumpkinWeaponName = null;
             pumpkinPickupUI.style.display = 'none';
         }
     };
@@ -930,10 +972,11 @@ function initGame() {
             }
         });
 
-        let nearbyPumpkin = pumpkins.find(p => p.active && camera.position.distanceTo(p.mesh.position) <= 5);
-        if (nearbyPumpkin && !activePumpkinItem && !isHoldingGatling && !gatlingGunPlaced) {
-            activePumpkinItem = nearbyPumpkin.item;
-            pumpkinPickupUI.innerText = nearbyPumpkin.name;
+        let nearbyItem = droppedItems.find(d => camera.position.distanceTo(d.mesh.position) <= 5);
+        if (nearbyItem && !activePumpkinItem && !isHoldingGatling && !gatlingGunPlaced) {
+            activePumpkinItem = nearbyItem.item;
+            activePumpkinWeaponName = nearbyItem.name;
+            pumpkinPickupUI.innerText = nearbyItem.name;
             pumpkinPickupUI.style.display = 'block';
         } else if (gatlingGunPlaced && camera.position.distanceTo(gatlingMesh.position) <= gatlingPickupDistance) {
             pumpkinPickupUI.innerText = 'MOVE GATLING GUN';
@@ -941,7 +984,7 @@ function initGame() {
         } else if (isHoldingGatling) {
             pumpkinPickupUI.innerText = 'PLACE GATLING GUN';
             pumpkinPickupUI.style.display = 'block';
-        } else if (!nearbyPumpkin && !isHoldingGatling && !gatlingGunPlaced) {
+        } else if (!nearbyItem && !isHoldingGatling && !gatlingGunPlaced) {
             pumpkinPickupUI.style.display = 'none';
         }
 
