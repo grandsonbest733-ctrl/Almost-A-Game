@@ -31,6 +31,7 @@ function initGame() {
         #crouchBtn { position: absolute; bottom: 95px; right: 220px; padding: 15px; background: rgba(180,100,0,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; display: none; }
         #proneBtn { position: absolute; bottom: 30px; right: 130px; padding: 20px 15px; background: rgba(100,50,150,0.8); color: #fff; font-size: 12px; font-weight: bold; border-radius: 10px; cursor: pointer; display: none; }
         #moveBtn { position: absolute; bottom: 30px; right: 30px; padding: 20px 25px; background: rgba(255,255,255,0.8); color: #000; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer; display: none; }
+        #dismountBtn { position: absolute; bottom: 30px; left: 30px; padding: 15px 25px; background: rgba(180,0,0,0.9); color: #fff; font-size: 14px; font-weight: bold; border-radius: 10px; cursor: pointer; z-index: 25; display: none; }
         .home-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #141e28; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 30000; color: white; }
         .home-title { font-size: 48px; font-weight: bold; margin-bottom: 20px; text-shadow: 3px 3px #000; }
         .skin-select-container { display: flex; gap: 15px; margin-bottom: 25px; }
@@ -40,6 +41,7 @@ function initGame() {
         .home-btn.cancel { background: #aa0000; }
         .pumpkin-pickup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -120px); background: #ffffff; color: #000000; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; z-index: 25; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: none; border: 2px solid #333; }
         #gatlingWheel { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 120px; height: 120px; background: rgba(0,0,0,0.6); border: 4px solid #fff; border-radius: 50%; display: none; z-index: 25; touch-action: none; }
+        #turretCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none; }
     `;
     document.head.appendChild(style);
 
@@ -88,15 +90,18 @@ function initGame() {
         { name: 'Lee-Enfield', fr: 350, max: 10, cur: 10, rt: 2000, dmg: 75, maxRange: 400, type: 'rifle', wood: 0x69482b, metal: 0x2d2d2d },
         { name: 'Remington 870', fr: 650, max: 6, cur: 6, rt: 2200, dmg: 90, maxRange: 20, type: 'shotgun', wood: 0x4a3219, metal: 0x404040 },
         { name: 'Thompson Submachine Gun', fr: 100, max: 30, cur: 30, rt: 2300, dmg: 18, maxRange: 20, type: 'smg', wood: 0x5c3a21, metal: 0x1a1a1a },
-        { name: 'M1911', fr: 300, max: 7, cur: 7, rt: 1600, dmg: 35, maxRange: 50, type: 'pistol', wood: 0x442c1d, metal: 0x333333 }
+        { name: 'M1911', fr: 300, max: 7, cur: 7, rt: 1600, dmg: 35, maxRange: 20, type: 'pistol', wood: 0x442c1d, metal: 0x333333 }
     ];
     let weaponsList = JSON.parse(JSON.stringify(defaultWeaponsList));
     let curWeapon = { ...weaponsList[0] };
 
     const pumpkins = [];
     const droppedItems = [];
-
-    function spawnPumpkins() {
+    const turkeys = [];
+    const smokeClouds = [];
+    let activeGrenadeCookTime = 0;
+    let isCookingGrenade = false;
+    let trajectoryLine = null;    function spawnPumpkins() {
         pumpkins.forEach(p => scene.remove(p.mesh));
         pumpkins.length = 0;
         droppedItems.forEach(d => scene.remove(d.mesh));
@@ -115,10 +120,39 @@ function initGame() {
             pGroup.add(body, stem);
             pGroup.position.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
             scene.add(pGroup);
-            pumpkins.push({ mesh: pGroup, hp: 150, maxHp: 150, item: t.item, name: t.name, active: true, explosionTimer: 0, explosionMesh: null });
+            pumpkins.push({ mesh: pGroup, hp: 50, maxHp: 50, item: t.item, name: t.name, active: true, explosionTimer: 0, explosionMesh: null });
         });
     }
-    spawnPumpkins();    const wContainer = new THREE.Group();
+    spawnPumpkins();
+
+    function spawnTurkey() {
+        let tGroup = new THREE.Group();
+        let body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 1.2), new THREE.MeshStandardMaterial({ color: 0x8b4513 }));
+        let head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0xa52a2a }));
+        head.position.set(0, 0.6, 0.6);
+        tGroup.add(body, head);
+        tGroup.position.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
+        scene.add(tGroup);
+
+        turkeys.push({
+            mesh: tGroup,
+            hp: 50,
+            maxHp: 50,
+            targetPos: new THREE.Vector3((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300),
+            isAgro: false
+        });
+    }
+
+    function initTurkeys() {
+        turkeys.forEach(t => scene.remove(t.mesh));
+        turkeys.length = 0;
+        for (let i = 0; i < 12; i++) {
+            spawnTurkey();
+        }
+    }
+    initTurkeys();
+
+    const wContainer = new THREE.Group();
     wContainer.position.set(0.3, -0.3, -0.6);
     camera.add(wContainer);
     scene.add(camera);
@@ -133,6 +167,73 @@ function initGame() {
     flash.position.set(0, 0.05, -1.3);
     flash.visible = false;
     wContainer.add(flash);
+
+    function applyWeaponMeshColors(weapon) {
+        stockMesh.material.color.setHex(weapon.wood || 0x6e4726);
+        barrelMesh.material.color.setHex(weapon.metal || 0x222222);
+    }
+
+    const turretCanvas = document.createElement('canvas');
+    turretCanvas.id = 'turretCanvas';
+    document.body.appendChild(turretCanvas);
+    const tCtx = turretCanvas.getContext('2d');
+
+    function resizeTurretCanvas() {
+        turretCanvas.width = window.innerWidth;
+        turretCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeTurretCanvas);
+    resizeTurretCanvas();
+
+    function drawShieldTurretHUD() {
+        tCtx.clearRect(0, 0, turretCanvas.width, turretCanvas.height);
+        if (!gatlingGunPlaced) return;
+
+        let w = turretCanvas.width;
+        let h = turretCanvas.height;
+
+        tCtx.save();
+        tCtx.fillStyle = 'rgba(20, 25, 30, 0.85)';
+        tCtx.beginPath();
+        tCtx.moveTo(0, h);
+        tCtx.lineTo(0, h - 140);
+        tCtx.lineTo(w * 0.25, h - 80);
+        tCtx.lineTo(w * 0.5, h - 100);
+        tCtx.lineTo(w * 0.75, h - 80);
+        tCtx.lineTo(w, h - 140);
+        tCtx.lineTo(w, h);
+        tCtx.closePath();
+        tCtx.fill();
+
+        tCtx.strokeStyle = '#3b4a54';
+        tCtx.lineWidth = 6;
+        tCtx.beginPath();
+        tCtx.moveTo(0, h - 140);
+        tCtx.lineTo(w * 0.25, h - 80);
+        tCtx.lineTo(w * 0.5, h - 100);
+        tCtx.lineTo(w * 0.75, h - 80);
+        tCtx.lineTo(w, h - 140);
+        tCtx.stroke();
+
+        tCtx.fillStyle = '#0f1418';
+        tCtx.fillRect(w * 0.35, h - 65, w * 0.30, 45);
+        tCtx.strokeStyle = '#5a7382';
+        tCtx.lineWidth = 3;
+        tCtx.strokeRect(w * 0.35, h - 65, w * 0.30, 45);
+
+        tCtx.fillStyle = '#00ffcc';
+        tCtx.font = 'bold 20px monospace';
+        tCtx.textAlign = 'center';
+        tCtx.fillText(`TURRET AMMO: ${gatlingBullets}`, w * 0.5, h - 35);
+
+        tCtx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
+        tCtx.lineWidth = 2;
+        tCtx.beginPath();
+        tCtx.arc(w / 2, h / 2, 40, 0, Math.PI * 2);
+        tCtx.stroke();
+
+        tCtx.restore();
+    }
 
     function makeBuilding(x, z) {
         const bg = new THREE.Group(); bg.position.set(x, 0, z); scene.add(bg);
@@ -174,9 +275,7 @@ function initGame() {
             floorFloors.push(step);
         }
     }
-    buildingCoords.forEach(c => makeBuilding(...c));
-
-    const mkDiv = (cls, txt = '') => { let d = document.createElement('div'); d.className = cls; d.innerText = txt; document.body.appendChild(d); return d; };
+    buildingCoords.forEach(c => makeBuilding(...c));    const mkDiv = (cls, txt = '') => { let d = document.createElement('div'); d.className = cls; d.innerText = txt; document.body.appendChild(d); return d; };
     const crosshairUI = mkDiv('crosshair');
     const ammoUI = mkDiv('ui-ammo'), hpUI = mkDiv('ui-health'), playerHpUI = mkDiv('ui-player-hp', 'HP: 500');
     const botStatusUI = mkDiv('bot-status');
@@ -277,8 +376,7 @@ function initGame() {
        
         weaponsList = JSON.parse(JSON.stringify(defaultWeaponsList));
         curWeapon = { ...weaponsList[0] };
-        stockMesh.material.color.setHex(curWeapon.wood);
-        barrelMesh.material.color.setHex(curWeapon.metal);
+        applyWeaponMeshColors(curWeapon);
         rebuildWeaponBar();
         updateUI();
 
@@ -289,7 +387,10 @@ function initGame() {
         if (gatlingMesh) { scene.remove(gatlingMesh); gatlingMesh = null; }
         pumpkinPickupUI.style.display = 'none';
         gatlingWheelUI.style.display = 'none';
+        turretCanvas.style.display = 'none';
+        wContainer.visible = true;
         spawnPumpkins();
+        initTurkeys();
         if (bot) {
             scene.remove(bot.mesh);
             spawnBot();
@@ -312,9 +413,7 @@ function initGame() {
         proneBtnUI.style.display = 'block';
         moveBtnUI.style.display = 'block';
         resetGameMatch();
-    }
-
-    function returnToHomeScreen() {
+    }    function returnToHomeScreen() {
         gameStarted = false;
         crosshairUI.style.display = 'none';
         ammoUI.style.display = 'none';
@@ -333,6 +432,9 @@ function initGame() {
         moveBtnUI.style.display = 'none';
         pumpkinPickupUI.style.display = 'none';
         gatlingWheelUI.style.display = 'none';
+        turretCanvas.style.display = 'none';
+        dismountBtnUI.style.display = 'none';
+        wContainer.visible = true;
 
         homeStartBtn.innerText = 'START GAME';
         homeStartBtn.classList.remove('cancel');
@@ -360,6 +462,13 @@ function initGame() {
         activePumpkinWeaponName = null;
         pumpkinPickupUI.style.display = 'none';
         gatlingWheelUI.style.display = 'none';
+        turretCanvas.style.display = 'none';
+        dismountBtnUI.style.display = 'none';
+        wContainer.visible = true;
+        gatlingGunPlaced = false;
+        isHoldingGatling = false;
+        if (gatlingMesh) { scene.remove(gatlingMesh); gatlingMesh = null; }
+
         let respawnCountdown = 5;
         botStatusUI.style.display = 'block';
         botStatusUI.innerText = `YOU DIED - RESPAWNS IN ${respawnCountdown}s`;
@@ -379,7 +488,44 @@ function initGame() {
                 playerHpUI.innerText = `HP: ${playerHp}`;
                 camera.position.set((Math.random() - 0.5) * 200, 2, (Math.random() - 0.5) * 200);
                 rY = 0; rX = 0; camera.rotation.set(rX, rY, 0);
+                isInvincible = true;
+                setTimeout(() => { isInvincible = false; }, 5000);
                 isDead = false;
+            }
+        }, 1000);
+    }
+
+    function handleBotDefeat() {
+        if (!bot || bot.isRespawning) return;
+        bot.isRespawning = true;
+        scene.remove(bot.mesh);
+        bot.hp = 0;
+        hpUI.style.display = 'none';
+
+        blueScore++;
+        updateScoreboard();
+
+        if (blueScore >= 10) {
+            triggerGameOver(true);
+            return;
+        }
+
+        let respawnCountdown = 5;
+        botStatusUI.style.display = 'block';
+        botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
+
+        let respawnInterval = setInterval(() => {
+            if (!gameStarted || isDead) {
+                clearInterval(respawnInterval);
+                return;
+            }
+            respawnCountdown--;
+            if (respawnCountdown > 0) {
+                botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
+            } else {
+                clearInterval(respawnInterval);
+                botStatusUI.style.display = 'none';
+                spawnBot();
             }
         }, 1000);
     }
@@ -397,7 +543,7 @@ function initGame() {
             let b = mkDiv('weapon-btn', w.name);
             b.onclick = e => {
                 e.stopPropagation(); curWeapon = { ...w };
-                stockMesh.material.color.setHex(w.wood); barrelMesh.material.color.setHex(w.metal);
+                applyWeaponMeshColors(curWeapon);
                 updateUI(); wBar.classList.remove('open');
             };
             wBar.appendChild(b);
@@ -455,9 +601,7 @@ function initGame() {
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
             o.start(now); o.stop(now + 0.8);
         }
-    }
-
-    let bot = null;
+    }    let bot = null;
     function spawnBot() {
         let botGroup = new THREE.Group();
 
@@ -484,20 +628,12 @@ function initGame() {
         botGroup.position.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
         scene.add(botGroup);
 
-        let botWeapons = [
-            { name: 'M1 Garand', fr: 400, max: 8, cur: 8, rt: 1500, dmg: 34, maxRange: 400 },
-            { name: 'AK-47', fr: 150, max: 30, cur: 30, rt: 2000, dmg: 20, maxRange: 250 },
-            { name: 'Winchester 1873', fr: 600, max: 12, cur: 12, rt: 2200, dmg: 55, maxRange: 400 },
-            { name: 'Colt Single Action Army', fr: 500, max: 6, cur: 6, rt: 1800, dmg: 45, maxRange: 20 },
-            { name: 'Mosin Nagant', fr: 900, max: 5, cur: 5, rt: 2500, dmg: 85, maxRange: 400 },
-            { name: 'Thompson Submachine Gun', fr: 100, max: 30, cur: 30, rt: 2300, dmg: 18, maxRange: 20 }
-        ];
-        let randomBotWeapon = { ...botWeapons[Math.floor(Math.random() * botWeapons.length)] };
+        let randomBotWeapon = { ...defaultWeaponsList[Math.floor(Math.random() * defaultWeaponsList.length)] };
 
         bot = {
             mesh: botGroup,
-            hp: 250,
-            maxHp: 250,
+            hp: 100,
+            maxHp: 100,
             weapon: randomBotWeapon,
             lastShot: 0,
             isReloading: false,
@@ -507,7 +643,9 @@ function initGame() {
             alertTimer: 0
         };
     }
-    spawnBot();    const raycaster = new THREE.Raycaster();
+    spawnBot();
+
+    const raycaster = new THREE.Raycaster();
     const lineRaycaster = new THREE.Raycaster();
 
     function hasLineOfSight(fromPos, toPos) {
@@ -521,6 +659,10 @@ function initGame() {
         return hits.length === 0;
     }
 
+    function isInsideSmoke(pos) {
+        return smokeClouds.some(s => pos.distanceTo(s.pos) <= 15);
+    }
+
     function spawnDroppedItem(pos, itemType, itemName) {
         let itemMesh = new THREE.Group();
         let body;
@@ -529,6 +671,11 @@ function initGame() {
         } else if (itemType === 'Bazooka') {
             body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.5), new THREE.MeshStandardMaterial({ color: 0x222222 }));
             body.rotation.x = Math.PI / 2;
+        } else if (itemType === 'Smoke Grenade') {
+            body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+            body.rotation.x = Math.PI / 2;
+        } else if (itemType === 'Frag Grenade') {
+            body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0x334433 }));
         } else {
             body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x8b0000 }));
             body.rotation.x = Math.PI / 2;
@@ -578,31 +725,70 @@ function initGame() {
         if (bot && bot.hp > 0 && !bot.isRespawning) {
             let bDist = bot.mesh.position.distanceTo(dropPos);
             if (bDist <= 30) {
-                bot.hp = 0;
-                bot.isRespawning = true;
-                scene.remove(bot.mesh);
-                blueScore++;
-                updateScoreboard();
-                if (blueScore >= 10) {
-                    triggerGameOver(true);
-                } else {
-                    let respawnCountdown = 5;
-                    botStatusUI.style.display = 'block';
-                    botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                    let respawnInterval = setInterval(() => {
-                        if (!gameStarted || isDead) { clearInterval(respawnInterval); return; }
-                        respawnCountdown--;
-                        if (respawnCountdown > 0) {
-                            botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                        } else {
-                            clearInterval(respawnInterval);
-                            botStatusUI.style.display = 'none';
-                            spawnBot();
-                        }
-                    }, 1000);
-                }
+                handleBotDefeat();
             }
         }
+    }    function triggerTurkeyExplosion(turkeyPos) {
+        playSound('explosion');
+        let expGeo = new THREE.RingGeometry(0.1, 30, 32);
+        let expMat = new THREE.MeshBasicMaterial({ color: 0xff4500, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+        let expRing = new THREE.Mesh(expGeo, expMat);
+        expRing.rotation.x = -Math.PI / 2;
+        expRing.position.copy(turkeyPos);
+        expRing.position.y = 0.1;
+        scene.add(expRing);
+        setTimeout(() => scene.remove(expRing), 3000);
+
+        let hitLiving = false;
+        let pDist = camera.position.distanceTo(turkeyPos);
+        if (pDist <= 30) {
+            hitLiving = true;
+            if (!isInvincible && !isDead) {
+                playerHp = 0;
+                playerHpUI.innerText = `HP: 0`;
+                triggerDeath();
+            }
+        }
+        if (bot && bot.hp > 0 && !bot.isRespawning) {
+            let bDist = bot.mesh.position.distanceTo(turkeyPos);
+            if (bDist <= 30) {
+                hitLiving = true;
+                handleBotDefeat();
+            }
+        }
+        turkeys.forEach(t => {
+            if (t.hp > 0 && t.mesh.position.distanceTo(turkeyPos) <= 30) {
+                hitLiving = true;
+                t.hp = 0;
+                scene.remove(t.mesh);
+                spawnDroppedItem(t.mesh.position.clone(), Math.random() < 0.5 ? 'Smoke Grenade' : 'Frag Grenade', Math.random() < 0.5 ? 'Smoke Grenade' : 'Frag Grenade');
+                spawnTurkey();
+            }
+        });
+    }
+
+    function throwFragGrenade() {
+        let origin = camera.position.clone();
+        let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        let vel = dir.clone().multiplyScalar(25).add(new THREE.Vector3(0, 5, 0));
+        let gPos = origin.clone();
+
+        let throwInterval = setInterval(() => {
+            vel.y -= 9.8 * 0.05;
+            gPos.addScaledVector(vel, 0.05);
+            if (gPos.y <= 0) {
+                gPos.y = 0;
+                clearInterval(throwInterval);
+                triggerTurkeyExplosion(gPos);
+            }
+        }, 50);
+    }
+
+    function deploySmokeGrenade(pos) {
+        let smokeMesh = new THREE.Mesh(new THREE.SphereGeometry(10, 16, 16), new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.6 }));
+        smokeMesh.position.copy(pos);
+        scene.add(smokeMesh);
+        smokeClouds.push({ pos: pos.clone(), mesh: smokeMesh, expire: performance.now() + 15000 });
     }
 
     function shoot() {
@@ -622,63 +808,29 @@ function initGame() {
             curWeapon.cur--;
             updateUI();
 
-            if (curWeapon.name === 'Bazooka') {
-                playSound('explosion');
-                bot.hp = 0;
-                bot.isRespawning = true;
-                scene.remove(bot.mesh);
-                blueScore++;
-                updateScoreboard();
-                if (blueScore >= 10) { triggerGameOver(true); return; }
-                let respawnCountdown = 5;
-                botStatusUI.style.display = 'block';
-                botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                let respawnInterval = setInterval(() => {
-                    if (!gameStarted || isDead) { clearInterval(respawnInterval); return; }
-                    respawnCountdown--;
-                    if (respawnCountdown > 0) {
-                        botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                    } else {
-                        clearInterval(respawnInterval);
-                        botStatusUI.style.display = 'none';
-                        spawnBot();
-                    }
-                }, 1000);
-                activePumpkinItem = null;
-                activePumpkinWeaponName = null;
-                weaponsList = JSON.parse(JSON.stringify(defaultWeaponsList));
+            if (curWeapon.cur <= 0 && ['Bazooka', 'Flare Gun', 'Smoke Grenade', 'Frag Grenade'].includes(curWeapon.name)) {
+                let idx = weaponsList.findIndex(w => w.name === curWeapon.name);
+                if (idx > -1) weaponsList.splice(idx, 1);
+                weaponsList = weaponsList.length > 0 ? weaponsList : JSON.parse(JSON.stringify(defaultWeaponsList));
                 rebuildWeaponBar();
                 curWeapon = { ...weaponsList[0] };
+                applyWeaponMeshColors(curWeapon);
                 updateUI();
+            }
+
+            if (curWeapon.name === 'Bazooka') {
+                playSound('explosion');
+                handleBotDefeat();
                 return;
             } else if (curWeapon.name === 'Flare Gun') {
                 playSound('shot');
-                bot.hp = 0;
-                bot.isRespawning = true;
-                scene.remove(bot.mesh);
-                blueScore++;
-                updateScoreboard();
-                if (blueScore >= 10) { triggerGameOver(true); return; }
-                let respawnCountdown = 5;
-                botStatusUI.style.display = 'block';
-                botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                let respawnInterval = setInterval(() => {
-                    if (!gameStarted || isDead) { clearInterval(respawnInterval); return; }
-                    respawnCountdown--;
-                    if (respawnCountdown > 0) {
-                        botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                    } else {
-                        clearInterval(respawnInterval);
-                        botStatusUI.style.display = 'none';
-                        spawnBot();
-                    }
-                }, 1000);
-                activePumpkinItem = null;
-                activePumpkinWeaponName = null;
-                weaponsList = JSON.parse(JSON.stringify(defaultWeaponsList));
-                rebuildWeaponBar();
-                curWeapon = { ...weaponsList[0] };
-                updateUI();
+                handleBotDefeat();
+                return;
+            } else if (curWeapon.name === 'Smoke Grenade') {
+                playSound('shot');
+                deploySmokeGrenade(camera.position.clone());
+                return;
+            } else if (curWeapon.name === 'Frag Grenade') {
                 return;
             } else if (curWeapon.type === 'shotgun') {
                 playSound('shotgun');
@@ -686,28 +838,34 @@ function initGame() {
                 playSound('shot');
             }
 
-            if (curWeapon.name === 'M1 Garand' && curWeapon.cur === 0) {
-                playSound('garand_ping');
-            }
-
             flash.visible = true;
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
            
             let targets = [bot.mesh];
             pumpkins.forEach(p => { if (p.active) targets.push(p.mesh); });
+            turkeys.forEach(t => { if (t.hp > 0) targets.push(t.mesh); });
 
             let hits = raycaster.intersectObjects(targets, true);
             if (hits.length > 0) {
                 let hitObj = hits[0].object;
                 let distance = camera.position.distanceTo(hits[0].point);
                 if (distance <= curWeapon.maxRange) {
-
                     let hitPumpkin = pumpkins.find(p => p.active && (p.mesh === hitObj || p.mesh.children.includes(hitObj)));
                     if (hitPumpkin) {
                         let finalDmg = Math.max(1, Math.round(curWeapon.dmg * (1 - (distance / curWeapon.maxRange))));
                         hitPumpkin.hp -= finalDmg;
-                        if (hitPumpkin.hp <= 0) {
-                            triggerPumpkinExplosion(hitPumpkin);
+                        if (hitPumpkin.hp <= 0) triggerPumpkinExplosion(hitPumpkin);
+                        return;
+                    }
+
+                    let hitTurkey = turkeys.find(t => t.hp > 0 && (t.mesh === hitObj || t.mesh.children.includes(hitObj)));
+                    if (hitTurkey) {
+                        hitTurkey.hp -= curWeapon.dmg;
+                        hitTurkey.isAgro = true;
+                        if (hitTurkey.hp <= 0) {
+                            scene.remove(hitTurkey.mesh);
+                            spawnDroppedItem(hitTurkey.mesh.position.clone(), Math.random() < 0.5 ? 'Smoke Grenade' : 'Frag Grenade', Math.random() < 0.5 ? 'Smoke Grenade' : 'Frag Grenade');
+                            spawnTurkey();
                         }
                         return;
                     }
@@ -717,48 +875,48 @@ function initGame() {
                         let finalDamage = Math.max(1, Math.round(curWeapon.dmg * (1 - (distance / curWeapon.maxRange))));
                         bot.hp -= finalDamage;
                         bot.showHpUntil = performance.now() + 3000;
-                        if (bot.hp <= 0 && !bot.isRespawning) {
-                            bot.isRespawning = true;
-                            scene.remove(bot.mesh);
-                            bot.hp = 0;
-                            hpUI.style.display = 'none';
-
-                            blueScore++;
-                            updateScoreboard();
-
-                            if (blueScore >= 10) {
-                                triggerGameOver(true);
-                                return;
-                            }
-
-                            let respawnCountdown = 5;
-                            botStatusUI.style.display = 'block';
-                            botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-
-                            let respawnInterval = setInterval(() => {
-                                if (!gameStarted || isDead) {
-                                    clearInterval(respawnInterval);
-                                    return;
-                                }
-                                respawnCountdown--;
-                                if (respawnCountdown > 0) {
-                                    botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                                } else {
-                                    clearInterval(respawnInterval);
-                                    botStatusUI.style.display = 'none';
-                                    spawnBot();
-                                }
-                            }, 1000);
-                        }
+                        if (bot.hp <= 0 && !bot.isRespawning) handleBotDefeat();
                     }
                 }
             }
         }
-    }    let moving = false, shooting = false, verticalVelocity = 0, isJumping = false;
+    }
+
+    let moving = false, shooting = false, verticalVelocity = 0, isJumping = false;
     const mkBtn = (id, txt, cb) => {
         let b = mkDiv('', txt); b.id = id;
-        b.ontouchstart = b.onmousedown = e => { e.preventDefault(); if (gameStarted && !isDead) cb(true); };
-        b.ontouchend = b.onmouseup = e => { e.preventDefault(); cb(false); };
+        b.ontouchstart = b.onmousedown = e => {
+            e.preventDefault();
+            if (gameStarted && !isDead) {
+                if (id === 'shootBtn' && curWeapon.name === 'Frag Grenade') {
+                    isCookingGrenade = true;
+                    activeGrenadeCookTime = performance.now();
+                }
+                cb(true);
+            }
+        };
+        b.ontouchend = b.onmouseup = e => {
+            e.preventDefault();
+            if (id === 'shootBtn' && curWeapon.name === 'Frag Grenade' && isCookingGrenade) {
+                isCookingGrenade = false;
+                let cookDuration = performance.now() - activeGrenadeCookTime;
+                if (cookDuration >= 5000) {
+                    playerHp = 0;
+                    playerHpUI.innerText = `HP: 0`;
+                    triggerDeath();
+                } else {
+                    throwFragGrenade();
+                    let idx = weaponsList.findIndex(w => w.name === 'Frag Grenade');
+                    if (idx > -1) weaponsList.splice(idx, 1);
+                    weaponsList = weaponsList.length > 0 ? weaponsList : JSON.parse(JSON.stringify(defaultWeaponsList));
+                    rebuildWeaponBar();
+                    curWeapon = { ...weaponsList[0] };
+                    applyWeaponMeshColors(curWeapon);
+                    updateUI();
+                }
+            }
+            cb(false);
+        };
         return b;
     };
     const shootBtnUI = mkBtn('shootBtn', 'SHOOT', v => shooting = v);
@@ -797,7 +955,29 @@ function initGame() {
             curWeapon.isReloading = true; updateUI();
             setTimeout(() => { curWeapon.cur = curWeapon.max; curWeapon.isReloading = false; updateUI(); }, curWeapon.rt);
         }
-    });
+    });    const dismountBtnUI = mkDiv('dismountBtn', 'DISMOUNT');
+    dismountBtnUI.id = 'dismountBtn';
+    dismountBtnUI.onclick = () => {
+        if (!gatlingGunPlaced) return;
+        gatlingGunPlaced = false;
+        gatlingWheelUI.style.display = 'none';
+        turretCanvas.style.display = 'none';
+        dismountBtnUI.style.display = 'none';
+        wContainer.visible = true;
+
+        shootBtnUI.style.display = 'block';
+        moveBtnUI.style.display = 'block';
+        jumpBtnUI.style.display = 'block';
+        crouchBtnUI.style.display = 'block';
+        proneBtnUI.style.display = 'block';
+        reloadBtnUI.style.display = 'block';
+        menuBtn.style.display = 'block';
+
+        if (gatlingMesh) {
+            scene.remove(gatlingMesh);
+            gatlingMesh = null;
+        }
+    };
 
     pumpkinPickupUI.onclick = () => {
         if (!activePumpkinItem) return;
@@ -815,21 +995,53 @@ function initGame() {
                 scene.add(gatlingMesh);
                 pumpkinPickupUI.innerText = 'MOVE GATLING GUN';
                 gatlingWheelUI.style.display = 'block';
+                turretCanvas.style.display = 'block';
+                dismountBtnUI.style.display = 'block';
+                wContainer.visible = false;
+
+                shootBtnUI.style.display = 'none';
+                moveBtnUI.style.display = 'none';
+                jumpBtnUI.style.display = 'none';
+                crouchBtnUI.style.display = 'none';
+                proneBtnUI.style.display = 'none';
+                reloadBtnUI.style.display = 'none';
+                menuBtn.style.display = 'none';
+                wBar.classList.remove('open');
             } else if (gatlingGunPlaced && camera.position.distanceTo(gatlingMesh.position) <= gatlingPickupDistance) {
                 gatlingGunPlaced = false;
                 isHoldingGatling = true;
                 scene.remove(gatlingMesh);
                 gatlingMesh = null;
                 gatlingWheelUI.style.display = 'none';
+                turretCanvas.style.display = 'none';
+                dismountBtnUI.style.display = 'none';
+                wContainer.visible = true;
+
+                shootBtnUI.style.display = 'block';
+                moveBtnUI.style.display = 'block';
+                jumpBtnUI.style.display = 'block';
+                crouchBtnUI.style.display = 'block';
+                proneBtnUI.style.display = 'block';
+                reloadBtnUI.style.display = 'block';
+                menuBtn.style.display = 'block';
+
                 pumpkinPickupUI.innerText = 'PLACE GATLING GUN';
             }
         } else {
+            if (weaponsList.length >= 9) return;
+            let specialWood = activePumpkinItem === 'Bazooka' ? 0x222222 : (activePumpkinItem === 'Smoke Grenade' ? 0x555555 : 0x8b0000);
+            let specialMetal = activePumpkinItem === 'Bazooka' ? 0x111111 : (activePumpkinItem === 'Smoke Grenade' ? 0x333333 : 0x330000);
             let specialWeapon = activePumpkinItem === 'Bazooka' ?
-                { name: 'Bazooka', fr: 1000, max: 1, cur: 1, rt: 3000, dmg: 500, maxRange: 500, type: 'rifle', wood: 0x222222, metal: 0x111111 } :
-                { name: 'Flare Gun', fr: 1000, max: 1, cur: 1, rt: 3000, dmg: 500, maxRange: 500, type: 'pistol', wood: 0x8b0000, metal: 0x330000 };
+                { name: 'Bazooka', fr: 1000, max: 1, cur: 1, rt: 3000, dmg: 500, maxRange: 500, type: 'rifle', wood: specialWood, metal: specialMetal } :
+                (activePumpkinItem === 'Flare Gun' ?
+                { name: 'Flare Gun', fr: 1000, max: 1, cur: 1, rt: 3000, dmg: 500, maxRange: 500, type: 'pistol', wood: specialWood, metal: specialMetal } :
+                (activePumpkinItem === 'Smoke Grenade' ?
+                { name: 'Smoke Grenade', fr: 1000, max: 1, cur: 1, rt: 2000, dmg: 0, maxRange: 50, type: 'tactical', wood: specialWood, metal: specialMetal } :
+                { name: 'Frag Grenade', fr: 1000, max: 1, cur: 1, rt: 2000, dmg: 500, maxRange: 50, type: 'tactical', wood: specialWood, metal: specialMetal }));
            
             weaponsList.push(specialWeapon);
             curWeapon = { ...specialWeapon };
+            applyWeaponMeshColors(curWeapon);
             rebuildWeaponBar();
             updateUI();
 
@@ -847,7 +1059,11 @@ function initGame() {
     };
 
     let wheelStartX = 0, wheelStartY = 0, lastAngle = 0, totalWheelRotations = 0;
+    let isTouchingWheel = false;
+
     gatlingWheelUI.ontouchstart = e => {
+        e.stopPropagation();
+        isTouchingWheel = true;
         let t = e.touches[0];
         let rect = gatlingWheelUI.getBoundingClientRect();
         wheelStartX = rect.left + rect.width / 2;
@@ -855,7 +1071,9 @@ function initGame() {
         lastAngle = Math.atan2(t.clientY - wheelStartY, t.clientX - wheelStartX);
         totalWheelRotations = 0;
     };
+
     gatlingWheelUI.ontouchmove = e => {
+        e.stopPropagation();
         e.preventDefault();
         if (!gatlingGunPlaced || gatlingBullets <= 0 || !bot || bot.isRespawning) return;
         let t = e.touches[0];
@@ -870,52 +1088,51 @@ function initGame() {
             totalWheelRotations = 0;
             gatlingBullets--;
             playSound('shot');
-            let distToBot = gatlingMesh.position.distanceTo(bot.mesh.position);
-            if (distToBot <= 500) {
-                bot.hp -= 50;
-                bot.showHpUntil = performance.now() + 3000;
-                bot.alertTimer = performance.now() + 5000;
-                if (bot.hp <= 0 && !bot.isRespawning) {
-                    bot.isRespawning = true;
-                    scene.remove(bot.mesh);
-                    blueScore++;
-                    updateScoreboard();
-                    if (blueScore >= 10) { triggerGameOver(true); return; }
-                    let respawnCountdown = 5;
-                    botStatusUI.style.display = 'block';
-                    botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                    let respawnInterval = setInterval(() => {
-                        if (!gameStarted || !gatlingGunPlaced) { clearInterval(respawnInterval); return; }
-                        respawnCountdown--;
-                        if (respawnCountdown > 0) {
-                            botStatusUI.innerText = `BOT DEFEATED - RESPAWNS IN ${respawnCountdown}s`;
-                        } else {
-                            clearInterval(respawnInterval);
-                            botStatusUI.style.display = 'none';
-                            spawnBot();
-                        }
-                    }, 1000);
+
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            let hits = raycaster.intersectObjects([bot.mesh], true);
+            if (hits.length > 0) {
+                let distance = camera.position.distanceTo(hits[0].point);
+                if (distance <= 300) {
+                    bot.alertTimer = performance.now() + 5000;
+                    bot.hp -= 25;
+                    bot.showHpUntil = performance.now() + 3000;
+                    if (bot.hp <= 0 && !bot.isRespawning) handleBotDefeat();
                 }
             }
+
             if (gatlingBullets <= 0) {
                 gatlingGunPlaced = false;
                 scene.remove(gatlingMesh);
                 gatlingMesh = null;
                 gatlingWheelUI.style.display = 'none';
+                turretCanvas.style.display = 'none';
+                dismountBtnUI.style.display = 'none';
+                wContainer.visible = true;
+
+                shootBtnUI.style.display = 'block';
+                moveBtnUI.style.display = 'block';
+                jumpBtnUI.style.display = 'block';
+                crouchBtnUI.style.display = 'block';
+                proneBtnUI.style.display = 'block';
+                reloadBtnUI.style.display = 'block';
+                menuBtn.style.display = 'block';
                 pumpkinPickupUI.style.display = 'none';
             }
         }
     };
 
+    gatlingWheelUI.ontouchend = () => { isTouchingWheel = false; };
+
     let tX = 0, tY = 0;
     window.ontouchmove = e => {
-        if (!gameStarted || isDead) return;
+        if (!gameStarted || isDead || (gatlingGunPlaced && isTouchingWheel)) return;
         let t = e.touches[0];
         rY -= (t.clientX - tX) * 0.005; camera.rotation.y = rY;
         rX = Math.max(-1.5, Math.min(1.5, rX - (t.clientY - tY) * 0.005)); camera.rotation.x = rX;
         tX = t.clientX; tY = t.clientY;
     };
-    window.ontouchstart = e => { if (gameStarted && !isDead && e.touches.length) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };
+    window.ontouchstart = e => { if (gameStarted && !isDead && e.touches.length && !(gatlingGunPlaced && isTouchingWheel)) { tX = e.touches[0].clientX; tY = e.touches[0].clientY; } };
 
     let hpVec = new THREE.Vector3();
 
@@ -953,14 +1170,46 @@ function initGame() {
         }
 
         let now = performance.now();
+        smokeClouds.forEach((s, idx) => {
+            if (now >= s.expire) {
+                scene.remove(s.mesh);
+                smokeClouds.splice(idx, 1);
+            }
+        });
+
+        turkeys.forEach(t => {
+            let distToPlayer = t.mesh.position.distanceTo(camera.position);
+            if (distToPlayer <= 5) {
+                if (!isInvincible && !isDead) {
+                    playerHp -= 50 * 0.016;
+                    playerHpUI.innerText = `HP: ${Math.max(0, Math.round(playerHp))}`;
+                    if (playerHp <= 0) triggerDeath();
+                }
+            }
+
+            if (t.isAgro && !isInsideSmoke(t.mesh.position)) {
+                let dir = new THREE.Vector3().subVectors(camera.position, t.mesh.position).normalize();
+                t.mesh.position.addScaledVector(dir, 0.03);
+                t.mesh.lookAt(camera.position.x, t.mesh.position.y, camera.position.z);
+            } else {
+                if (t.mesh.position.distanceTo(t.targetPos) < 3) {
+                    t.targetPos.set((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300);
+                }
+                t.mesh.lookAt(t.targetPos);
+                let dir = new THREE.Vector3().subVectors(t.targetPos, t.mesh.position).normalize();
+                t.mesh.position.addScaledVector(dir, 0.015);
+            }
+        });
+
         pumpkins.forEach(p => {
             if (p.explosionTimer && now >= p.explosionTimer) {
                 if (p.explosionMesh) { scene.remove(p.explosionMesh); p.explosionMesh = null; }
                 p.explosionTimer = 0;
             }
             if (p.active && bot && bot.hp > 0 && !bot.isRespawning) {
-                let pDist = bot.mesh.position.distanceTo(p.mesh.position);
-                if (pDist <= 50) {
+                let pDistToBot = bot.mesh.position.distanceTo(p.mesh.position);
+                let pDistToPlayer = camera.position.distanceTo(p.mesh.position);
+                if (pDistToBot <= 50 && pDistToPlayer <= 30 && !isInsideSmoke(p.mesh.position)) {
                     let hasSight = hasLineOfSight(bot.mesh.position, p.mesh.position);
                     if (hasSight && now - bot.lastShot >= bot.weapon.fr) {
                         bot.lastShot = now;
@@ -991,9 +1240,9 @@ function initGame() {
         if (bot && bot.hp > 0 && !bot.isRespawning) {
             let distToPlayer = bot.mesh.position.distanceTo(camera.position);
 
-            let effectiveVisionRange = 120;
-            if (currentStance === 'crouch') effectiveVisionRange = 50;
-            if (currentStance === 'prone') effectiveVisionRange = 20;
+            let effectiveVisionRange = isInsideSmoke(camera.position) ? 15 : 120;
+            if (currentStance === 'crouch') effectiveVisionRange = Math.min(effectiveVisionRange, 50);
+            if (currentStance === 'prone') effectiveVisionRange = Math.min(effectiveVisionRange, 20);
 
             let botDir = new THREE.Vector3(0, 0, -1).applyQuaternion(bot.mesh.quaternion);
             let toPlayerDir = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
@@ -1003,8 +1252,7 @@ function initGame() {
             let isAlerted = bot.alertTimer && now < bot.alertTimer;
 
             if ((distToPlayer < effectiveVisionRange && lookDot > 0.3 && hasSight) || isAlerted) {
-                let targetLookPos = isAlerted ? camera.position : camera.position;
-                bot.mesh.lookAt(targetLookPos.x, bot.mesh.position.y, targetLookPos.z);
+                bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
                
                 if (distToPlayer > 5 && (hasSight || isAlerted)) {
                     let dir = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
@@ -1076,7 +1324,8 @@ function initGame() {
             hpUI.style.display = 'none';
         }
 
+        drawShieldTurretHUD();
         renderer.render(scene, camera);
     }
     animate();
-                }
+                            }
